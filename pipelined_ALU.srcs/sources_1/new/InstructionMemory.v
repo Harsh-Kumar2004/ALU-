@@ -1,12 +1,12 @@
 module InstructionMemory (
-    input  wire [7:0]  pc,         
-    output wire [15:0] instruction
+    input  wire [7:0]  pc_in,          
+    output wire [15:0] instruction_out
 );
 
     reg [15:0] rom [0:255];
     initial begin
-        //$readmemb("program.bin", rom);
+        // $readmemb("program.bin", rom);
     end
-    assign instruction = rom[pc];
+    assign instruction_out = rom[pc_in];
 
 endmodule

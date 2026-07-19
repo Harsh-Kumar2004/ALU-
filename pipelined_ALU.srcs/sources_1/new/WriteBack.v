@@ -1,10 +1,10 @@
-module WriteBack(
-	input wire        was_mem_read,
-	input wire  [7:0] alu_result,
-	input wire  [7:0] load_data,
+module WriteBack (
+	input wire        mem_read_in,
+	input wire  [7:0] alu_result_in,
+	input wire  [7:0] load_data_in,
 
-	output wire [7:0] write_back_data 
+	output wire [7:0] wb_data_out 
 	);
 
-	assign write_back_data = was_mem_read ? load_data : alu_result; 
+	assign wb_data_out = mem_read_in ? load_data_in : alu_result_in; 
 endmodule

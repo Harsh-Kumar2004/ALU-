@@ -1,3 +1,4 @@
+
 module IF_ID (
     input  wire        clk,
     input  wire        reset,
@@ -12,8 +13,8 @@ module IF_ID (
     assign next_pc = pc + 8'b00000001;
 
     InstructionMemory imem (
-        .pc(pc),
-        .instruction(fetched_instruction)
+        .pc_in(pc),
+        .instruction_out(fetched_instruction)
     );
 
     always @(posedge clk or posedge reset) begin

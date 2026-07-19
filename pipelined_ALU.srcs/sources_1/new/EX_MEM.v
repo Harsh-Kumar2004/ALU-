@@ -2,86 +2,94 @@ module EX_MEM (
     input  wire       clk,
     input  wire       reset,
     
-    input  wire       reg_write_in,      //group of input signals to be forwarded
+    input  wire       reg_write_in,      //group of input control signals
     input  wire       mem_write_in,
     input  wire       mem_read_in,
-    input  wire [7:0] store_data_in,     //Value of the data which is to be stored in the store instruction 
+    input  wire       imm_sel_in,
+    input  wire [2:0] alu_control_in,
 
-    input  wire [2:0] store_rd_addr,     //Address of the register which the store instruction will store
-    input  wire       is_immediate,      //group of signals used in this module
-    input  wire [2:0] ALUcontrol,
-    input  wire [7:0] rs1_data,
-    input  wire [7:0] rs2_data,
-    input  wire [7:0] imm_data,
-    input  wire [2:0] rs1_addr,
-    input  wire [2:0] rs2_addr,
-    input  wire [2:0] rd_addr,           //Address of the register at which current instruction will write to 
-    
-    input  wire [7:0] EXMEM_alu_result,  //Result of instruction running 1 cycle ahead
-    input  wire       EXMEM_reg_write,   //whether this instruction (running 1 cycle ahead) will write it's result to register file or not
-    input  wire [2:0] EXMEM_rd_addr,     //the address of the register at which it will write the result if it does 
-    
-    input  wire [7:0] WB_write_back_data,//result of instruction running 2 cycles ahead
-    input  wire       MEMWB_reg_write,   //whether this instruction (running 2 cycles ahead) will write it's result to register file or not
-    input  wire [2:0] MEMWB_rd_addr,     //the address of the register at which it will write the result if it does
+    input  wire [7:0] store_data_in,     //data which could be potentially stored by the store instruction 
+    input  wire [7:0] rs1_data_in,
+    input  wire [7:0] rs2_data_in,
+    input  wire [7:0] imm_data_in,
 
-    output reg        reg_write_out,     //group of signals being forwarded
+    input  wire [2:0] rs1_addr_in,
+    input  wire [2:0] rs2_addr_in,
+    input  wire [2:0] rd_addr_in,        //Address of the destination register or the address of the register whose data will be stored
+    
+    input  wire [7:0] mem_alu_result_in, //Result of instruction running 1 cycle ahead
+    input  wire       mem_reg_write_in,  //whether this instruction (running 1 cycle ahead) will write it's result to register file or not
+    input  wire [2:0] mem_rd_addr_in,    //the address of the register at which it will write the result
+    
+    input  wire [7:0] wb_data_in,        //result of instruction running 2 cycles ahead
+    input  wire       wb_reg_write_in,   //whether this instruction (running 2 cycles ahead) will write it's result to register file or not
+    input  wire [2:0] wb_rd_addr_in,     //the address of the register at which it will write the result
+
+    output reg        reg_write_out,     
     output reg        mem_read_out,
     output reg        mem_write_out,
+
     output reg  [2:0] rd_addr_out,
     output reg  [7:0] store_data_out,
     
-    output reg  [7:0] alu_result_out     // output of this stage
+    output reg  [7:0] alu_result_out,
+    output reg  [3:0] flag_reg_out    
 );
     
     wire [1:0] forwardA,
                forwardB,
-               forwardC;
+               forwardS;
     
-    ForwardingUnit fu0 (.rs1_addr(rs1_addr),
-                        .rs2_addr(rs2_addr),
-                        .store_rd_addr(store_rd_addr),
-                        .EXMEM_reg_write(EXMEM_reg_write),
-                        .EXMEM_rd_addr(EXMEM_rd_addr),
-                        .MEMWB_reg_write(MEMWB_reg_write),
-			            .MEMWB_rd_addr(MEMWB_rd_addr),
-                        .ForwardA(forwardA),
-                        .ForwardB(forwardB),
-                        .ForwardC(forwardC));
+    ForwardingUnit fu0 (.rs1_addr_in(rs1_addr_in),
+                        .rs2_addr_in(rs2_addr_in),
+                        .rd_addr_in(rd_addr_in),
+
+                        .mem_reg_write_in(mem_reg_write_in),
+                        .mem_rd_addr_in(mem_rd_addr_in),
+
+                        .wb_reg_write_in(wb_reg_write_in),
+			            .wb_rd_addr_in(wb_rd_addr_in),
+
+                        .forwardA_out(forwardA),
+                        .forwardB_out(forwardB),
+                        .forwardS_out(forwardS));
 
     reg  [7:0] alu_inA,
    	           alu_inB;
-    wire [7:0] alu_result;
+    wire [3:0] flag_reg,
+               alu_result;
 	       	
-    ALU a0 (.A(alu_inA),
-            .B(alu_inB),
-            .ALUcontrol(ALUcontrol),
-            .ALU_Result(alu_result));
+    ALU a0 (.alu_inA(alu_inA),
+            .alu_inB(alu_inB),
+            .alu_control_in(alu_control_in),
+
+            .alu_result_out(alu_result),
+            .flag_reg_out(flag_reg));
 
     reg  [7:0] store_data;
 
     always @(*) begin
         case (forwardA) 
-            2'b00  : alu_inA = rs1_data;
-            2'b01  : alu_inA = EXMEM_alu_result;
-            2'b10  : alu_inA = WB_write_back_data;
-            default: alu_inA = rs1_data;
+            2'b00  : alu_inA = rs1_data_in;
+            2'b01  : alu_inA = mem_alu_result_in;
+            2'b10  : alu_inA = wb_data_in;
+            default: alu_inA = rs1_data_in;
         endcase 
         
-        if (is_immediate) alu_inB = imm_data;
+        if (imm_sel_in) alu_inB = imm_data_in;
         else begin
             case (forwardB)
-            2'b00  : alu_inB = rs2_data;
-            2'b01  : alu_inB = EXMEM_alu_result;
-            2'b10  : alu_inB = WB_write_back_data;
-            default: alu_inB = rs2_data; 
+            2'b00  : alu_inB = rs2_data_in;
+            2'b01  : alu_inB = mem_alu_result_in;
+            2'b10  : alu_inB = wb_data_in;
+            default: alu_inB = rs2_data_in; 
             endcase
         end
 
-        case (forwardC)
+        case (forwardS)
             2'b00  : store_data = store_data_in;
-            2'b01  : store_data = EXMEM_alu_result;
-            2'b10  : store_data = WB_write_back_data;
+            2'b01  : store_data = mem_alu_result_in;
+            2'b10  : store_data = wb_data_in;
             default: store_data = store_data_in;
         endcase
     end
@@ -92,16 +100,20 @@ module EX_MEM (
             mem_read_out   <= 1'b0;
             mem_write_out  <= 1'b0;
             rd_addr_out    <= 3'b000;
-            alu_result_out <= 8'b00000000;
             store_data_out <= 8'b00000000;
+
+            flag_reg_out   <= 8'b00000000;
+            alu_result_out <= 8'b00000000;
         end
         else begin
             reg_write_out  <= reg_write_in;
             mem_read_out   <= mem_read_in;
             mem_write_out  <= mem_write_in;
-	        rd_addr_out    <= rd_addr;
+	        rd_addr_out    <= rd_addr_in;
+            store_data_out <= store_data;
+
+            flag_reg_out   <= flag_reg;
             alu_result_out <= alu_result;
-	        store_data_out <= store_data;
         end
     end
     
